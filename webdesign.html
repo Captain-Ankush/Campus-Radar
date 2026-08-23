@@ -1,0 +1,1440 @@
+
+Campus radar · HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campus Radar — Find your friends on campus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root{
+    --ink:        #0F1729;
+    --panel:      #161F38;
+    --panel-line: rgba(244,241,232,0.08);
+    --paper:      #F4F1E8;
+    --muted:      #8B93AC;
+    --gold:       #FFB627;
+    --teal:       #4FD1C5;
+    --coral:      #FF6B5B;
+    --grid-line:  rgba(244,241,232,0.05);
+  }
+ 
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 34px 34px;
+  }
+ 
+  a{ color:inherit; }
+ 
+  .mono{ font-family:'IBM Plex Mono', monospace; letter-spacing:0.02em; }
+ 
+  /* ---------- Header ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:22px 32px;
+    border-bottom:1px solid var(--panel-line);
+  }
+  .brand{ display:flex; align-items:baseline; gap:14px; }
+  .brand h1{
+    font-family:'Instrument Serif', serif;
+    font-style:italic;
+    font-weight:400;
+    font-size:28px;
+    margin:0;
+    color:var(--paper);
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--teal);
+  }
+  .add-btn{
+    background:var(--gold);
+    color:#1A1400;
+    border:none;
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:500;
+    font-size:13px;
+    padding:10px 18px;
+    border-radius:3px;
+    cursor:pointer;
+    letter-spacing:0.02em;
+  }
+  .add-btn:hover{ filter:brightness(1.08); }
+  .add-btn:focus-visible, button:focus-visible, input:focus-visible{
+    outline:2px solid var(--teal);
+    outline-offset:2px;
+  }
+ 
+  /* ---------- Layout ---------- */
+  .layout{
+    display:grid;
+    grid-template-columns: 320px 1fr;
+    min-height: calc(100vh - 73px);
+  }
+  @media (max-width: 820px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+ 
+  /* ---------- Sidebar / roster ---------- */
+  .roster{
+    border-right:1px solid var(--panel-line);
+    padding:24px 20px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%);
+  }
+  .roster-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:16px;
+  }
+  .roster-head .eyebrow{ color:var(--muted); }
+  .roster-count{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--muted);
+  }
+ 
+  .card{
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+    padding:12px;
+    border:1px solid var(--panel-line);
+    border-radius:6px;
+    background:var(--panel);
+    margin-bottom:10px;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .card.nearby{
+    border-color: var(--coral);
+    box-shadow: 0 0 0 1px var(--coral), 0 0 18px -4px var(--coral);
+  }
+  .card.offline{ opacity:0.5; }
+  .card.pending{ border-style:dashed; opacity:0.75; }
+ 
+  .badge{
+    width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:500; font-size:13px;
+    flex-shrink:0; color:#0F1729;
+  }
+ 
+  .card-body{ flex:1; min-width:0; }
+  .card-name{ font-weight:600; font-size:14px; display:flex; justify-content:space-between; gap:8px; }
+  .card-dist{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted); }
+  .card-loc{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .card.nearby .card-dist{ color:var(--coral); }
+  .pill{
+    display:inline-block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    padding:2px 6px;
+    border-radius:3px;
+    margin-top:6px;
+    background:rgba(255,255,255,0.06);
+    color:var(--muted);
+  }
+  .pill.on{ color:var(--teal); background:rgba(79,209,197,0.12); }
+ 
+  .roster-note{
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px dashed var(--panel-line);
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.5;
+  }
+ 
+  /* ---------- Map area ---------- */
+  .map-wrap{ position:relative; }
+  #map{ position:absolute; inset:0; background:var(--ink); }
+  .map-wrap::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  box-shadow: inset 0 0 120px rgba(15,23,41,0.5);
+  z-index:500;
+}
+ 
+  .nearby-banner{
+    position:absolute;
+    top:18px; left:50%;
+    transform:translate(-50%, -140%);
+    background:var(--coral);
+    color:#2A0A05;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    font-weight:500;
+    padding:10px 18px;
+    border-radius:4px;
+    z-index:1000;
+    box-shadow:0 8px 24px -6px rgba(0,0,0,0.6);
+    transition: transform .35s ease;
+    white-space:nowrap;
+  }
+  .nearby-banner.show{ transform:translate(-50%, 0); }
+ 
+  .status-bar{
+    position:absolute;
+    bottom:0; left:0; right:0;
+    padding:12px 20px;
+    background:linear-gradient(0deg, rgba(15,23,41,0.95), rgba(15,23,41,0.0));
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--muted);
+    z-index:900;
+    pointer-events:none;
+  }
+  .status-bar b{ color:var(--paper); }
+ 
+  /* leaflet marker styling */
+  .you-pin{
+    width:16px; height:16px; border-radius:50%;
+    background:var(--gold);
+    box-shadow:0 0 0 4px rgba(255,182,39,0.25);
+  }
+  .you-pin::after{
+    content:'';
+    position:absolute; inset:-8px;
+    border-radius:50%;
+    border:1.5px solid var(--gold);
+    animation: pulse 2.2s ease-out infinite;
+  }
+  .friend-pin{
+    width:12px; height:12px; border-radius:50%;
+    box-shadow:0 0 0 3px rgba(255,255,255,0.12);
+  }
+  @keyframes pulse{
+    0%{ transform:scale(0.6); opacity:0.9; }
+    100%{ transform:scale(2.2); opacity:0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .you-pin::after{ animation:none; }
+  }
+ 
+  /* ---------- Modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0;
+    background:rgba(10,14,26,0.7);
+    display:none;
+    align-items:center; justify-content:center;
+    z-index:2000;
+  }
+  .modal-backdrop.show{ display:flex; }
+  .modal{
+    background:var(--panel);
+    border:1px solid var(--panel-line);
+    border-radius:8px;
+    padding:24px;
+    width:320px;
+  }
+  .modal h2{
+    font-family:'Instrument Serif', serif;
+    font-style:italic;
+    font-weight:400;
+    font-size:22px;
+    margin:0 0 4px;
+  }
+  .modal p{ font-size:12px; color:var(--muted); margin:0 0 16px; }
+  .modal input{
+    width:100%;
+    background:var(--ink);
+    border:1px solid var(--panel-line);
+    color:var(--paper);
+    padding:10px 12px;
+    border-radius:4px;
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:14px;
+    margin-bottom:14px;
+  }
+  .modal-actions{ display:flex; gap:10px; justify-content:flex-end; }
+  .modal-actions button{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    padding:9px 14px;
+    border-radius:4px;
+    border:1px solid var(--panel-line);
+    background:transparent;
+    color:var(--muted);
+    cursor:pointer;
+  }
+  .modal-actions .primary{
+    background:var(--gold);
+    color:#1A1400;
+    border-color:var(--gold);
+  }
+  .profile-btn{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  border:2px solid var(--gold);
+  overflow:hidden;
+  cursor:pointer;
+  padding:0;
+  background:none;
+}
+
+.profile-btn img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.profile-item{
+  width:100%;
+  padding:12px;
+  margin-bottom:8px;
+  border:none;
+  border-radius:6px;
+  background:#202B47;
+  color:white;
+  text-align:left;
+  cursor:pointer;
+  font-family:'IBM Plex Sans',sans-serif;
+}
+
+.profile-item:hover{
+  background:#2B395C;
+}
+
+.logout{
+  background:#5A2020;
+}
+
+.logout:hover{
+  background:#7A2A2A;
+}
+.leaflet-control-zoom{
+  border:none !important;
+  box-shadow:0 4px 16px rgba(0,0,0,0.4) !important;
+}
+.leaflet-control-zoom a{
+  background:var(--panel) !important;
+  color:var(--paper) !important;
+  border:1px solid var(--panel-line) !important;
+  font-family:'IBM Plex Mono', monospace !important;
+}
+.leaflet-control-zoom a:hover{
+  background:#202B47 !important;
+}
+.leaflet-control-attribution{
+  background:rgba(22,31,56,0.85) !important;
+  color:var(--muted) !important;
+  font-size:10px !important;
+}
+.leaflet-control-attribution a{ color:var(--teal) !important; }
+.leaflet-tile-pane{
+  filter: contrast(1.08) saturate(1.15) brightness(1.03);
+}
+</style>
+</head>
+<body>
+ 
+<header>
+  <div class="brand">
+    <h1>Campus Radar</h1>
+    <span class="eyebrow">Live wayfinding · your campus</span>
+  </div>
+  <div style="display:flex; gap:10px; align-items:center;">
+
+  <button class="add-btn" id="loginBtn">Login</button>
+
+  <button id="profileBtn" class="profile-btn" style="display:none;">
+    <img id="profilePic" src="" alt="Profile">
+  </button>
+  <button id="notifBtn" class="add-btn" style="display:none; position:relative;">
+  🔔
+  <span id="notifCount" style="display:none; position:absolute; top:-6px; right:-6px; background:var(--coral); color:#2A0A05; font-size:10px; font-family:'IBM Plex Mono',monospace; padding:1px 5px; border-radius:10px;">0</span>
+</button>
+
+  <button class="add-btn" id="addFriendBtn">+ Add friend</button>
+
+</div>
+</header>
+ 
+<div class="layout">
+  <aside class="roster">
+    <div class="roster-head">
+      <span class="eyebrow">On campus now</span>
+      <span class="roster-count mono" id="rosterCount">— friends</span>
+    </div>
+    <div id="cardList"></div>
+    <div class="roster-note">
+      This is the base design. Positions below are simulated — the next step is wiring in real GPS (<span class="mono">navigator.geolocation</span>) and a backend so this reflects actual friends.
+    </div>
+  </aside>
+ 
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="nearby-banner mono" id="nearbyBanner"></div>
+    <div class="status-bar mono" id="statusBar"></div>
+  </div>
+</div>
+ 
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2>Add a friend</h2>
+    <p>Send a request. They'll show up here once accepted.</p>
+    <input type="text" id="friendRegInput" placeholder="Registration Number">
+    <div class="modal-actions">
+      <button id="cancelAdd">Cancel</button>
+      <button class="primary" id="confirmAdd">Send request</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="profileBackdrop">
+
+  <div class="modal">
+
+    <div style="text-align:center;">
+
+      <img id="profileImage"
+           src=""
+           style="width:72px;height:72px;border-radius:50%;margin-bottom:12px;">
+
+      <h2 id="profileName">Your Name</h2>
+
+      <p id="profileEmail">email@example.com</p>
+
+    </div>
+
+    <hr style="border-color:rgba(255,255,255,.08);margin:16px 0;">
+
+    <button class="profile-item" id="friendsListBtn">👥 Friends</button>
+    <button class="profile-item">⚙️ Settings</button>
+    <button class="profile-item">🔒 Privacy</button>
+    <button class="profile-item">🔔 Notifications</button>
+
+    <button id="logoutBtn"
+            class="profile-item logout">
+      🚪 Logout
+    </button>
+
+  </div>
+
+</div>
+<div class="modal-backdrop" id="regBackdrop">
+  <div class="modal">
+    <h2>Complete your profile</h2>
+    <p>Enter your Registration Number</p>
+
+    <input
+      id="regInput"
+      placeholder="12515286">
+
+    <div class="modal-actions">
+      <button class="primary" id="saveRegBtn">
+        Save
+      </button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="viewProfileBackdrop">
+  <div class="modal">
+    <div style="text-align:center;">
+      <img id="vpImage" src="" style="width:72px;height:72px;border-radius:50%;margin-bottom:12px;">
+      <h2 id="vpName">Name</h2>
+      <p id="vpReg" class="mono">Reg No</p>
+    </div>
+    <div id="vpActions" class="modal-actions" style="justify-content:center; margin-top:16px;"></div>
+  </div>
+</div>
+<div class="modal-backdrop" id="notifBackdrop">
+  <div class="modal" style="width:340px;">
+    <h2>Friend requests</h2>
+    <div id="notifList"></div>
+    <p id="notifEmpty" class="mono" style="color:var(--muted); display:none;">No pending requests.</p>
+  </div>
+</div>
+<div class="modal-backdrop" id="friendsListModalBackdrop">
+  <div class="modal" style="width:340px;">
+    <h2>Your friends</h2>
+    <div id="friendsListContainer"></div>
+    <p id="friendsListEmpty" class="mono" style="color:var(--muted); display:none;">No friends yet.</p>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { //Firestore me data save aur live listen karne ke liye chahiye.
+  query,
+  where,
+  getDocs,
+  addDoc,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  runTransaction,
+  serverTimestamp,
+  Timestamp,
+  onSnapshot,
+  collection,
+  documentId
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+// import { signOut } from
+// "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+// Tumhara Firebase Config yahan paste hoga
+const firebaseConfig = {
+  apiKey: "AIzaSyC3ok8ZO4-Wx5PV4J_IfIboa4Ir74x1rJM",
+  authDomain: "campurradar.firebaseapp.com",
+  projectId: "campurradar",
+  storageBucket: "campurradar.firebasestorage.app",
+  messagingSenderId: "273433511691",
+  appId: "1:273433511691:web:46011703dac47fc9ef040e"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const provider = new GoogleAuthProvider();
+let requestUnsubscribe = null;
+let currentUser = null;
+onAuthStateChanged(auth, (user) => {
+
+  const profileBtn = document.getElementById("profileBtn");
+  const profilePic = document.getElementById("profilePic");
+  const loginBtn = document.getElementById("loginBtn");
+
+  if (user) {
+
+    currentUser = user;
+    listenToFriends();
+    requestUnsubscribe = onSnapshot(
+
+  query(
+    collection(db,"friendRequests"),
+    where("to","==",currentUser?.uid || "none"),
+    where("status","==","pending")
+  ),
+
+  (snapshot)=>{
+    const requests = [];
+    snapshot.forEach(docSnap=>{
+      requests.push({ id: docSnap.id, data: docSnap.data() });
+    });
+    renderNotifications(requests);
+  }
+
+);
+
+    profileBtn.style.display = "block";
+    notifBtn.style.display = "inline-flex";
+    loginBtn.style.display = "none";
+
+    profilePic.src = user.photoURL;
+
+  } else {
+
+    currentUser = null;
+    if(friendUnsubscribe){ friendUnsubscribe(); friendUnsubscribe = null; }
+   if(requestUnsubscribe){ requestUnsubscribe(); requestUnsubscribe = null; }
+
+    profileBtn.style.display = "none";
+    notifBtn.style.display = "none";
+    loginBtn.style.display = "block";
+
+  }
+
+});
+
+  // ---- Placeholder campus center — replace with your college's real coordinates ----
+  const CAMPUS_CENTER = {
+  lat: 31.2536,
+  lng: 75.7046
+};
+ const NEARBY_THRESHOLD_M = 150;
+const map = L.map('map', {
+  zoomControl: true,
+  attributionControl: false,
+  zoomSnap: 0.25,
+  zoomDelta: 0.25,
+  wheelPxPerZoomLevel: 100
+}).setView([CAMPUS_CENTER.lat, CAMPUS_CENTER.lng], 17);
+ 
+ 
+/*L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 20,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);*/ // OpenStreetMap tiles
+// acgisonline tiles niche
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19,
+  attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19,
+  pane: 'shadowPane'
+}).addTo(map);
+L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
+  const lpuBounds = [
+  [31.2465, 75.6970], // South-West
+  [31.2608, 75.7145]  // North-East
+];
+
+map.fitBounds(lpuBounds);
+map.setMaxBounds(lpuBounds);
+map.setMinZoom(16);
+map.setMaxZoom(19);
+ 
+  function haversine(a, b){
+    const R = 6371000;
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const s = Math.sin(dLat/2)**2 +
+              Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  }
+
+function getNearestPlace(coord){
+
+  let nearest = null;
+  let minDistance = Infinity;
+
+  campusPlaces.forEach(place => {
+
+    const d = haversine(coord,{
+      lat:place.lat,
+      lng:place.lng
+    });
+
+    if(d < minDistance){
+      minDistance = d;
+      nearest = {...place,distance:d};
+    }
+
+  });
+
+  return nearest;
+
+}
+  function jitter(coord, magnitude){
+    return {
+      lat: coord.lat + (Math.random() - 0.5) * magnitude,
+      lng: coord.lng + (Math.random() - 0.5) * magnitude
+    };
+  }
+  function getFriendshipId(uid1, uid2){
+
+  return [uid1, uid2].sort().join("_");
+
+}
+  const you = { coord: { ...CAMPUS_CENTER } };
+  let firstLocation = true;
+ 
+ 
+  const youIcon = L.divIcon({ className:'', html:'<div class="you-pin" style="position:relative;"></div>', iconSize:[16,16] });
+  const youMarker = L.marker([you.coord.lat, you.coord.lng], { icon: youIcon, zIndexOffset: 1000 }).addTo(map)
+    .bindTooltip('You', { permanent:false, direction:'top' });
+// ===== LPU Important Places =====
+
+const campusPlaces = [
+  {
+    name: "Block 13",
+    type: "Academic",
+    lat: 31.255239,
+    lng: 75.706096
+  },
+  {
+    name: "Central Library",
+    type: "Library",
+    lat: 31.252009,
+    lng: 75.703382
+  },
+  {
+    name: "Uni Mall",
+    type: "Shopping",
+    lat: 31.255785,
+    lng: 75.705499
+  },
+  {
+    name: "BH-1",
+    type: "Hostel",
+    lat: 31.251235,
+    lng: 75.700383
+  },
+  {
+    name: "BH-2",
+    type: "Hostel",
+    lat: 31.249723,
+    lng: 75.700985
+  },
+  {
+    name: "BH-3",
+    type: "Hostel",
+    lat: 31.249676,
+    lng: 75.70038
+  },
+  {
+    name: "Robo Park",
+    type: "Park",
+    lat: 31.253469,
+    lng: 75.703322
+  },
+  {
+    name: "UniPolis",
+    type: "Auditorium",
+    lat: 31.255071,
+    lng: 75.704629
+  },
+  {
+    name: "Block 14(Business School)",
+    type: "Academic",
+    lat: 31.254509,
+    lng: 75.705624
+  }
+];
+
+/*const icons = {
+  Academic: "🏢",
+  Library: "📚",
+  Hostel: "🏠",
+  Shopping: "🛍️",
+  Park: "🤖",
+  Auditorium: "🏛️"
+};*/ //agar icons chaiye toh
+
+campusPlaces.forEach(place => {
+
+  const icon = L.divIcon({
+    /* className: "",
+    html: `
+       <div style="
+        background:white;
+        width:34px;
+        height:34px;
+        border-radius:50%;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:18px;
+        box-shadow:0 2px 8px rgba(0,0,0,.3);
+      ">
+        ${icons[place.type]}
+      </div>
+    `,
+    iconSize:[34,34]
+  }); */ // icons ka code
+    className: "",
+    html: `
+      <div style="
+        background:var(--panel);
+        border:1px solid var(--panel-line);
+        color:var(--paper);
+        padding:4px 10px;
+        border-radius:4px;
+        font-family:'IBM Plex Mono', monospace;
+        font-size:11px;
+        font-weight:500;
+        white-space:nowrap;
+        box-shadow:0 2px 8px rgba(0,0,0,.4);
+      ">
+        ${place.name}
+      </div>
+    `,
+    iconSize: null,
+    iconAnchor: [0, 0]
+  }); //bss text ke liye
+
+  L.marker([place.lat, place.lng],{icon})
+    .addTo(map)
+    .bindPopup(`<b>${place.name}</b><br>${place.type}`);
+
+});
+ 
+  const cardList = document.getElementById('cardList');
+  const rosterCount = document.getElementById('rosterCount');
+  const nearbyBanner = document.getElementById('nearbyBanner');
+  const statusBar = document.getElementById('statusBar');
+  let friendsData = {};
+  function render(){
+  const friendsArr = Object.entries(friendsData).map(([id, f]) => {
+    const coord = { lat: f.lat, lng: f.lng };
+    const distance = haversine(you.coord, coord);
+    const nearest = getNearestPlace(coord);
+    return {
+      id,
+      name: f.name || 'Unknown',
+      initials: (f.name || '??').slice(0,2).toUpperCase(),
+      building: nearest ? nearest.name : '',
+      distance
+    };
+  });
+
+  friendsArr.sort((a,b) => a.distance - b.distance);
+
+  rosterCount.textContent = `${friendsArr.length} tracked`;
+
+  cardList.innerHTML = '';
+  friendsArr.forEach(f => {
+    const isNearby = f.distance < NEARBY_THRESHOLD_M;
+    const div = document.createElement('div');
+    div.className = `card ${isNearby ? 'nearby' : ''}`;
+    div.innerHTML = `
+      <div class="badge" style="background:#4FD1C5">${f.initials}</div>
+      <div class="card-body">
+        <div class="card-name">${f.name}
+          <span class="card-dist">${Math.round(f.distance)}m</span>
+        </div>
+        <div class="card-loc">${f.building}</div>
+        <span class="pill on">On campus</span>
+      </div>`;
+    cardList.appendChild(div);
+  });
+
+  const nearest = friendsArr[0];
+  if(nearest && nearest.distance < NEARBY_THRESHOLD_M){
+    nearbyBanner.textContent = `🔔 ${nearest.name} is nearby — ${nearest.building}`;
+    nearbyBanner.classList.add('show');
+  } else {
+    nearbyBanner.classList.remove('show');
+  }
+
+  statusBar.innerHTML = nearest
+    ? `<b>${friendsArr.length}</b> friends tracked · nearest: <b>${nearest.name}</b>, ${Math.round(nearest.distance)}m away`
+    : `No friends online right now`;
+}
+  render();
+  // ===== Real-time Friend Tracking =====
+
+const friendMarkers = new Map();
+let friendUnsubscribe = null;
+// ===== Incoming Friend Requests =====
+let lastUploaded = null;
+if ("geolocation" in navigator) {
+
+  navigator.geolocation.watchPosition(
+
+    (position) => {
+
+      const { latitude, longitude } = position.coords;
+
+      // apni location update hogi
+      you.coord = {
+  lat: latitude,
+  lng: longitude
+};
+
+// Sirf 5m se zyada move hone par Firebase update hoga
+if (
+  currentUser &&
+  (
+    !lastUploaded ||
+    haversine(lastUploaded, {
+      lat: latitude,
+      lng: longitude
+    }) > 5
+  )
+) {
+
+  lastUploaded = {
+    lat: latitude,
+    lng: longitude
+  };
+
+  setDoc(
+    doc(db, "users", currentUser.uid),
+    {
+      name: currentUser.displayName,
+      email: currentUser.email,
+      photo: currentUser.photoURL,
+      lat: latitude,
+      lng: longitude,
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
+
+}
+      const nearestPlace = getNearestPlace(you.coord);
+      
+
+
+if(nearestPlace){
+
+  statusBar.innerHTML = `
+    📍 You are near
+    <b>${nearestPlace.name}</b>
+    (${Math.round(nearestPlace.distance)}m)
+  `;
+
+}
+
+      // marker move karega
+      youMarker.setLatLng([latitude, longitude]);
+
+      // map ko follow karega
+      //map.setView([latitude, longitude]); kuch galti na ho islye delete nhi kiya
+      if(firstLocation){
+
+  map.flyTo([latitude, longitude],18,{
+    duration:1.2
+  });
+
+  firstLocation=false;
+
+}
+
+      // distance aur sidebar refresh
+      render();
+
+    },
+
+    (err) => {
+      console.error(err);
+      alert("Location access allow karo.");
+    },
+
+    {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 10000
+    }
+
+  );
+
+}
+ 
+  // ---- Add-friend modal (mock — no backend yet) ----
+  const notifBtn = document.getElementById('notifBtn');
+const notifBackdrop = document.getElementById('notifBackdrop');
+
+notifBtn.onclick = () => notifBackdrop.classList.add('show');
+notifBackdrop.onclick = (e) => { if(e.target === notifBackdrop) notifBackdrop.classList.remove('show'); };
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const friendRegInput = document.getElementById('friendRegInput');
+ 
+  document.getElementById('addFriendBtn').onclick = () => {
+    modalBackdrop.classList.add('show');
+    friendRegInput.focus();
+  };
+  document.getElementById('cancelAdd').onclick = () => modalBackdrop.classList.remove('show');
+  modalBackdrop.onclick = (e) => { if (e.target === modalBackdrop) modalBackdrop.classList.remove('show'); };
+ 
+  document.getElementById("confirmAdd").onclick = async () => {
+  const reg = document.getElementById("friendRegInput").value.trim();
+  if(!reg) return;
+
+  const q = query(collection(db,"users"), where("regNo","==",reg));
+  const result = await getDocs(q);
+
+  if(result.empty){
+    alert("Student not found.");
+    return;
+  }
+
+  const friendDoc = result.docs[0];
+
+  modalBackdrop.classList.remove('show');
+  document.getElementById('friendRegInput').value = '';
+  await openProfile(friendDoc.id, friendDoc.data());
+};
+
+document.getElementById("loginBtn").onclick = async () => {
+  try {
+
+    const result = await signInWithPopup(auth, provider);
+    currentUser = result.user;
+    const userRef = doc(db,"users",currentUser.uid);
+
+const snap = await getDoc(userRef);
+
+if(!snap.exists() || !snap.data().regNo){
+
+  document.getElementById("regBackdrop")
+    .classList.add("show");
+
+}
+    document.getElementById("profileBtn").style.display = "block";
+    document.getElementById("loginBtn").style.display = "none";
+
+    document.getElementById("profilePic").src = currentUser.photoURL;
+    document.getElementById("profileName").textContent = currentUser.displayName;
+    document.getElementById("profileEmail").textContent = currentUser.email;
+    document.getElementById("profileImage").src = currentUser.photoURL;
+
+    alert(`Welcome ${currentUser.displayName}`);
+
+  } catch (err) {
+    console.error(err);
+    alert(err.message);
+  }
+};
+const profileBackdrop = document.getElementById("profileBackdrop");
+
+document.getElementById("profileBtn").onclick = () => {
+
+  document.getElementById("profileName").textContent =
+    currentUser.displayName;
+
+  document.getElementById("profileEmail").textContent =
+    currentUser.email;
+
+  document.getElementById("profileImage").src =
+    currentUser.photoURL;
+
+  profileBackdrop.classList.add("show");
+
+};
+
+profileBackdrop.onclick = (e) => {
+
+  if(e.target===profileBackdrop){
+
+    profileBackdrop.classList.remove("show");
+
+  }
+
+};
+document.getElementById("logoutBtn").onclick = async () => {
+
+  await signOut(auth);
+  if(friendUnsubscribe){
+  friendUnsubscribe();
+}
+
+friendMarkers.forEach(marker=>map.removeLayer(marker));
+friendMarkers.clear();
+friendsData = {};
+  currentUser = null;
+
+  document.getElementById("profileBtn").style.display="none";
+  const loginBtn = document.getElementById("loginBtn");
+  loginBtn.style.display="block";
+  loginBtn.textContent = "Login";
+
+  profileBackdrop.classList.remove("show");
+
+};
+document.getElementById("saveRegBtn").onclick = async () => {
+
+  const regNo = document.getElementById("regInput").value.trim();
+
+  if (!/^\d{8}$/.test(regNo)) {
+    alert("Registration number must be 8 digits.");
+    return;
+  }
+
+  try {
+
+    await runTransaction(db, async (transaction) => {
+
+      const regRef = doc(db, "registrations", regNo);
+      const userRef = doc(db, "users", currentUser.uid);
+
+      const regDoc = await transaction.get(regRef);
+
+      // Agar already kisi aur ne use kiya hai
+      if (regDoc.exists()) {
+        throw new Error("Registration number already registered.");
+      }
+
+      // Registration lock create
+      transaction.set(regRef, {
+  uid: currentUser.uid,
+  name: currentUser.displayName,
+  createdAt: Timestamp.now()
+});
+
+      // User profile update
+      transaction.set(userRef, {
+        name: currentUser.displayName,
+        email: currentUser.email,
+        photo: currentUser.photoURL,
+        regNo
+      }, { merge: true });
+
+    });
+
+    document.getElementById("regBackdrop").classList.remove("show");
+    alert("Registration linked successfully.");
+
+  } catch (err) {
+
+    alert(err.message);
+
+  }
+
+};
+async function acceptFriendRequest(requestId, requestData){
+
+  try{
+
+    await runTransaction(db, async(transaction)=>{
+
+      const friendshipId = getFriendshipId(
+        requestData.from,
+        requestData.to
+      );
+      const friendshipRef = doc(
+        db,
+        "friendships",
+        friendshipId
+      );
+
+      const requestRef = doc(
+        db,
+        "friendRequests",
+        requestId
+      );
+
+      const friendshipSnap = await transaction.get(friendshipRef);
+
+      if(friendshipSnap.exists()){
+
+        throw new Error("Already friends.");
+
+      }
+
+      // Friendship create
+      transaction.set(friendshipRef,{
+        users:[
+          requestData.from,
+          requestData.to
+        ],
+        createdAt: Timestamp.now()
+      });
+
+      // Request accepted
+      transaction.update(requestRef,{
+        status:"accepted"
+      });
+
+    });
+
+    alert("Friend request accepted!");
+
+  }
+  catch(err){
+
+    alert(err.message);
+
+  }
+
+}
+function chunkArray(arr, size){
+  const chunks = [];
+  for(let i = 0; i < arr.length; i += size){
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+      async function listenToFriends(){
+
+  if(friendUnsubscribe){
+    friendUnsubscribe();
+  }
+  const friendshipQuery = query(
+    collection(db,"friendships"),
+    where("users","array-contains",currentUser.uid)
+  );
+  onSnapshot(friendshipQuery, async(snapshot)=>{
+
+    const friendIds=[];
+
+    snapshot.forEach(docSnap=>{
+
+      const users=docSnap.data().users;
+
+      const friendId=users.find(id=>id!==currentUser.uid);
+
+      if(friendId){
+
+        friendIds.push(friendId);
+
+      }
+
+    });
+
+    // Purane markers hatao
+    friendMarkers.forEach(marker=>map.removeLayer(marker));
+    friendMarkers.clear();
+
+    if(friendIds.length===0) return;
+
+    const chunks = chunkArray(friendIds, 10);
+const unsubscribers = [];
+
+chunks.forEach(chunk => {
+  const userQuery = query(
+    collection(db,"users"),
+    where(documentId(), "in", chunk)
+  );
+
+  const unsub = onSnapshot(userQuery, (usersSnap) => {
+    usersSnap.forEach(userDoc=>{
+      const user=userDoc.data();
+      friendsData[userDoc.id] = user;
+
+      const icon=L.divIcon({
+        className:"",
+        html:`
+          <div class="friend-pin"
+            style="
+              background:#4FD1C5;
+              width:12px;
+              height:12px;
+              border-radius:50%;
+              box-shadow:0 0 0 3px rgba(255,255,255,.15);
+            ">
+          </div>
+        `,
+        iconSize:[12,12]
+      });
+
+      if(friendMarkers.has(userDoc.id)){
+        friendMarkers.get(userDoc.id).setLatLng([user.lat,user.lng]);
+      } else {
+        const marker=L.marker([user.lat,user.lng],{icon})
+          .addTo(map)
+          .bindTooltip(user.name);
+        friendMarkers.set(userDoc.id,marker);
+      }
+    });
+
+    render();
+  });
+
+  unsubscribers.push(unsub);
+});
+
+friendUnsubscribe = () => {
+  unsubscribers.forEach(fn => fn());
+};
+// 👆 yahi last statement honi chahiye is function mein, iske baad kuch nahi
+
+
+
+  });
+
+}
+async function rejectFriendRequest(requestId){
+
+  await updateDoc(
+    doc(db,"friendRequests",requestId),
+    {
+      status:"rejected"
+    }
+  );
+
+}
+function renderNotifications(requests){
+  const notifCount = document.getElementById('notifCount');
+  const notifList = document.getElementById('notifList');
+  const notifEmpty = document.getElementById('notifEmpty');
+
+  if(requests.length === 0){
+    notifCount.style.display = 'none';
+    notifList.innerHTML = '';
+    notifEmpty.style.display = 'block';
+    return;
+  }
+
+  notifCount.style.display = 'inline-block';
+  notifCount.textContent = requests.length;
+  notifEmpty.style.display = 'none';
+
+  notifList.innerHTML = '';
+  requests.forEach(({id, data}) => {
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = `
+      <div class="badge" style="background:#4FD1C5; overflow:hidden;">
+        ${data.fromPhoto ? `<img src="${data.fromPhoto}" style="width:100%;height:100%;object-fit:cover;">` : '??'}
+      </div>
+      <div class="card-body">
+        <div class="card-name">${data.fromName || 'Unknown'}</div>
+        <div class="modal-actions" style="justify-content:flex-start; margin-top:8px;">
+          <button class="primary" data-action="accept" data-id="${id}">Accept</button>
+          <button data-action="reject" data-id="${id}">Reject</button>
+        </div>
+      </div>
+    `;
+    notifList.appendChild(div);
+  });
+
+  notifList.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.onclick = async () => {
+      const reqId = btn.dataset.id;
+      const reqData = requests.find(r => r.id === reqId).data;
+      if(btn.dataset.action === 'accept'){
+        await acceptFriendRequest(reqId, reqData);
+      } else {
+        await rejectFriendRequest(reqId);
+      }
+    };
+  });
+}
+const friendsListModalBackdrop = document.getElementById('friendsListModalBackdrop');
+const friendsListContainer = document.getElementById('friendsListContainer');
+const friendsListEmpty = document.getElementById('friendsListEmpty');
+
+friendsListModalBackdrop.onclick = (e) => {
+  if(e.target === friendsListModalBackdrop) friendsListModalBackdrop.classList.remove('show');
+};
+
+document.getElementById('friendsListBtn').onclick = () => {
+  profileBackdrop.classList.remove('show');
+  renderFriendsList();
+  friendsListModalBackdrop.classList.add('show');
+};
+
+function renderFriendsList(){
+  const ids = Object.keys(friendsData);
+
+  if(ids.length === 0){
+    friendsListContainer.innerHTML = '';
+    friendsListEmpty.style.display = 'block';
+    return;
+  }
+
+  friendsListEmpty.style.display = 'none';
+  friendsListContainer.innerHTML = '';
+
+  ids.forEach(id => {
+    const f = friendsData[id];
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.cursor = 'pointer';
+    div.innerHTML = `
+      <div class="badge" style="background:#4FD1C5; overflow:hidden;">
+        ${f.photo ? `<img src="${f.photo}" style="width:100%;height:100%;object-fit:cover;">` : (f.name || '??').slice(0,2).toUpperCase()}
+      </div>
+      <div class="card-body">
+        <div class="card-name">${f.name || 'Unknown'}</div>
+        <div class="card-loc">Tap to locate on map</div>
+      </div>
+    `;
+    div.onclick = () => goToFriendOnMap(id);
+    friendsListContainer.appendChild(div);
+  });
+}
+
+function goToFriendOnMap(id){
+  const marker = friendMarkers.get(id);
+  if(!marker){
+    alert("Location abhi available nahi hai.");
+    return;
+  }
+
+  friendsListModalBackdrop.classList.remove('show');
+
+  const latlng = marker.getLatLng();
+  map.flyTo(latlng, 18, { duration: 1.2 });
+
+  marker.openTooltip();
+  setTimeout(() => marker.closeTooltip(), 3000);
+}
+let viewedProfile = null;
+
+const viewProfileBackdrop = document.getElementById('viewProfileBackdrop');
+const vpActions = document.getElementById('vpActions');
+
+viewProfileBackdrop.onclick = (e) => {
+  if (e.target === viewProfileBackdrop) viewProfileBackdrop.classList.remove('show');
+};
+
+async function openProfile(foundUserId, foundUserData){
+  viewedProfile = { id: foundUserId, data: foundUserData };
+
+  document.getElementById('vpImage').src = foundUserData.photo || '';
+  document.getElementById('vpName').textContent = foundUserData.name || 'Unknown';
+  document.getElementById('vpReg').textContent = foundUserData.regNo || '';
+
+  await renderProfileActions();
+  viewProfileBackdrop.classList.add('show');
+}
+
+async function renderProfileActions(){
+  vpActions.innerHTML = '<span class="mono" style="color:var(--muted)">Loading...</span>';
+
+  const otherId = viewedProfile.id;
+
+  // 1. Check: already friends?
+  const friendshipId = getFriendshipId(currentUser.uid, otherId);
+  const friendshipSnap = await getDoc(doc(db, "friendships", friendshipId));
+
+  if(friendshipSnap.exists()){
+    vpActions.innerHTML = `<span class="pill on">✓ Friends</span>`;
+    return;
+  }
+
+  // 2. Check: maine already request bheji hai?
+  const sentQuery = query(
+    collection(db,"friendRequests"),
+    where("from","==",currentUser.uid),
+    where("to","==",otherId),
+    where("status","==","pending")
+  );
+  const sentSnap = await getDocs(sentQuery);
+
+  if(!sentSnap.empty){
+    vpActions.innerHTML = `<span class="pill">Requested</span>`;
+    return;
+  }
+
+  // 3. Check: unhone mujhe request bheji hai?
+  const receivedQuery = query(
+    collection(db,"friendRequests"),
+    where("from","==",otherId),
+    where("to","==",currentUser.uid),
+    where("status","==","pending")
+  );
+  const receivedSnap = await getDocs(receivedQuery);
+
+  if(!receivedSnap.empty){
+    const reqDoc = receivedSnap.docs[0];
+    vpActions.innerHTML = `
+      <button id="vpAcceptBtn" class="primary">Accept</button>
+      <button id="vpRejectBtn">Reject</button>
+    `;
+    document.getElementById('vpAcceptBtn').onclick = async () => {
+      await acceptFriendRequest(reqDoc.id, reqDoc.data());
+      await renderProfileActions();
+    };
+    document.getElementById('vpRejectBtn').onclick = async () => {
+      await rejectFriendRequest(reqDoc.id);
+      await renderProfileActions();
+    };
+    return;
+  }
+
+  // 4. Koi relation nahi — Follow button dikhao
+  vpActions.innerHTML = `<button id="vpFollowBtn" class="primary">Follow</button>`;
+  document.getElementById('vpFollowBtn').onclick = async () => {
+    await addDoc(collection(db,"friendRequests"), {
+  from: currentUser.uid,
+  fromName: currentUser.displayName,
+  fromPhoto: currentUser.photoURL,
+  to: otherId,
+  status: "pending",
+  createdAt: serverTimestamp()
+});
+    await renderProfileActions();
+  };
+}
+</script>
+</body>
+</html>
