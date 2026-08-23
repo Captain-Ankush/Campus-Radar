@@ -842,7 +842,8 @@ campusPlaces.forEach(place => {
   let friendsData = {};
   let lastNotifiedId = null;
   function render(){
-  const friendsArr = Object.entries(friendsData).map(([id, f]) => {
+  const friendsArr = Object.entries(friendsData).filter(([id, f]) =>
+  f.lat != null && f.lng != null).map(([id, f]) => {
     const coord = { lat: f.lat, lng: f.lng };
     const distance = haversine(you.coord, coord);
     const nearest = getNearestPlace(coord);
