@@ -426,6 +426,7 @@ header{ gap:16px; }
   🔔
   <span id="notifCount" style="display:none; position:absolute; top:-6px; right:-6px; background:var(--coral); color:#2A0A05; font-size:10px; font-family:'IBM Plex Mono',monospace; padding:1px 5px; border-radius:10px;">0</span>
 </button>
+<button id="refreshBtn" class="add-btn" title="Refresh">🔄</button>
 
   <button class="add-btn" id="addFriendBtn">+ Add friend</button>
 <button id="sidebarToggle" class="hamburger-btn" aria-label="Toggle sidebar">
@@ -998,6 +999,7 @@ if(nearestPlace){
  
   // ---- Add-friend modal (mock — no backend yet) ----
   const notifBtn = document.getElementById('notifBtn');
+  document.getElementById('refreshBtn').onclick = () => location.reload();
   const sidebarToggle = document.getElementById('sidebarToggle');
 const sidebarBackdrop = document.getElementById('sidebarBackdrop');
 
@@ -1086,16 +1088,19 @@ if(!snap.exists()){
 };
 const profileBackdrop = document.getElementById("profileBackdrop");
 
-document.getElementById("profileBtn").onclick = () => {
+document.getElementById("profileBtn").onclick = async () => {
+
+  const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+  const userData = userSnap.exists() ? userSnap.data() : {};
 
   document.getElementById("profileName").textContent =
-    currentUser.displayName;
+    userData.name || currentUser.displayName;
 
   document.getElementById("profileEmail").textContent =
     currentUser.email;
 
   document.getElementById("profileImage").src =
-    currentUser.photoURL;
+    userData.photo || currentUser.photoURL;
 
   profileBackdrop.classList.add("show");
 
