@@ -1064,7 +1064,7 @@ if(!snap.exists() || !snap.data().regNo){
     .classList.add("show");
 
 }
-if(!snap.exists()){
+if(!snap.exists() || !snap.data().name){
   await setDoc(userRef, {
     name: currentUser.displayName,
     email: currentUser.email,
@@ -1305,7 +1305,9 @@ chunks.forEach(chunk => {
     usersSnap.forEach(userDoc=>{
       const user=userDoc.data();
       friendsData[userDoc.id] = user;
-
+      if(user.lat == null || user.lng == null){
+    return;   // is friend ki location abhi available nahi — skip karo, crash mat hone do
+  }
       const icon=L.divIcon({
         className:"",
         html:`
@@ -1453,7 +1455,7 @@ function renderFriendsList(){
 function goToFriendOnMap(id){
   const marker = friendMarkers.get(id);
   if(!marker){
-    alert("Location abhi available nahi hai.");
+    alert("Location is not available.");
     return;
   }
 
