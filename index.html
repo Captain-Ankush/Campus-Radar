@@ -588,10 +588,12 @@ onAuthStateChanged(auth, (user) => {
   if (user) {
 
     currentUser = user;
+    startLocationTracking();
     if("Notification" in window && Notification.permission === "default"){
   Notification.requestPermission();
 }
     listenToFriends();
+
     requestUnsubscribe = onSnapshot(
 
   query(
@@ -619,6 +621,7 @@ onAuthStateChanged(auth, (user) => {
   } else {
 
     currentUser = null;
+    stopLocationTracking();
     if(friendUnsubscribe){ friendUnsubscribe(); friendUnsubscribe = null; }
    if(requestUnsubscribe){ requestUnsubscribe(); requestUnsubscribe = null; }
 
@@ -907,9 +910,12 @@ const friendMarkers = new Map();
 let friendUnsubscribe = null;
 // ===== Incoming Friend Requests =====
 let lastUploaded = null;
-if ("geolocation" in navigator) {
+let watchId = null;
+function startLocationTracking(){
+if (!("geolocation" in navigator)) return;
+  if(watchId != null) return;
 
-  navigator.geolocation.watchPosition(
+  watchId = navigator.geolocation.watchPosition(
 
     (position) => {
 
@@ -921,7 +927,6 @@ if ("geolocation" in navigator) {
   lng: longitude
 };
 
-// Sirf 5m se zyada move hone par Firebase update hoga
 if (
   currentUser &&
   (
@@ -985,7 +990,7 @@ if(nearestPlace){
 
     (err) => {
       console.error(err);
-      alert("Location access allow karo.");
+      alert("Allow Location.");
     },
 
     {
@@ -996,6 +1001,14 @@ if(nearestPlace){
 
   );
 
+}
+function stopLocationTracking(){
+  if(watchId != null){
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+  lastUploaded = null;
+  firstLocation = true;
 }
  
   // ---- Add-friend modal (mock — no backend yet) ----
