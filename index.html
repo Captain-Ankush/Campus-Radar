@@ -475,7 +475,10 @@ header{ gap:16px; }
            src=""
            style="width:72px;height:72px;border-radius:50%;margin-bottom:12px;">
 
-      <h2 id="profileName">Your Name</h2>
+      <div style="display:flex; align-items:center; justify-content:center; gap:8px;">
+  <h2 id="profileName">Your Name</h2>
+  <button id="editNameBtn" style="background:none;border:none;color:var(--teal);cursor:pointer;font-size:14px;">✏️</button>
+</div>
 
       <p id="profileEmail">email@example.com</p>
 
@@ -584,6 +587,9 @@ onAuthStateChanged(auth, (user) => {
   if (user) {
 
     currentUser = user;
+    if("Notification" in window && Notification.permission === "default"){
+  Notification.requestPermission();
+}
     listenToFriends();
     requestUnsubscribe = onSnapshot(
 
@@ -833,6 +839,7 @@ campusPlaces.forEach(place => {
   const nearbyBanner = document.getElementById('nearbyBanner');
   const statusBar = document.getElementById('statusBar');
   let friendsData = {};
+  let lastNotifiedId = null;
   function render(){
   const friendsArr = Object.entries(friendsData).map(([id, f]) => {
     const coord = { lat: f.lat, lng: f.lng };
@@ -869,12 +876,23 @@ campusPlaces.forEach(place => {
   });
 
   const nearest = friendsArr[0];
-  if(nearest && nearest.distance < NEARBY_THRESHOLD_M){
-    nearbyBanner.textContent = `🔔 ${nearest.name} is nearby — ${nearest.building}`;
-    nearbyBanner.classList.add('show');
-  } else {
-    nearbyBanner.classList.remove('show');
+if(nearest && nearest.distance < NEARBY_THRESHOLD_M){
+  nearbyBanner.textContent = `🔔 ${nearest.name} is nearby — ${nearest.building}`;
+  nearbyBanner.classList.add('show');
+
+  if(nearest.id !== lastNotifiedId){
+    lastNotifiedId = nearest.id;
+    if("Notification" in window && Notification.permission === "granted"){
+      new Notification("Campus Radar", {
+        body: `${nearest.name} is nearby — ${nearest.building} (${Math.round(nearest.distance)}m)`,
+        icon: "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+      });
+    }
   }
+} else {
+  nearbyBanner.classList.remove('show');
+  lastNotifiedId = null;
+}
 
   statusBar.innerHTML = nearest
     ? `<b>${friendsArr.length}</b> friends tracked · nearest: <b>${nearest.name}</b>, ${Math.round(nearest.distance)}m away`
@@ -921,9 +939,6 @@ if (
   setDoc(
     doc(db, "users", currentUser.uid),
     {
-      name: currentUser.displayName,
-      email: currentUser.email,
-      photo: currentUser.photoURL,
       lat: latitude,
       lng: longitude,
       updatedAt: serverTimestamp()
@@ -1047,6 +1062,13 @@ if(!snap.exists() || !snap.data().regNo){
     .classList.add("show");
 
 }
+if(!snap.exists()){
+  await setDoc(userRef, {
+    name: currentUser.displayName,
+    email: currentUser.email,
+    photo: currentUser.photoURL
+  }, { merge: true });
+}
     document.getElementById("profileBtn").style.display = "block";
     document.getElementById("loginBtn").style.display = "none";
 
@@ -1107,6 +1129,17 @@ friendsData = {};
 
   profileBackdrop.classList.remove("show");
 
+};
+document.getElementById('editNameBtn').onclick = async () => {
+  const newName = prompt("Naya naam daalo:", document.getElementById('profileName').textContent);
+  if(!newName || !newName.trim()) return;
+
+  try {
+    await setDoc(doc(db, "users", currentUser.uid), { name: newName.trim() }, { merge: true });
+    document.getElementById('profileName').textContent = newName.trim();
+  } catch(err){
+    alert("Error: " + err.message);
+  }
 };
 document.getElementById("saveRegBtn").onclick = async () => {
 
