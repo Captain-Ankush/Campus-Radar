@@ -1,0 +1,17 @@
+node_modules/
+.idea/
+.vscode/
+
+# Capacitor generated web assets
+www/
+
+# Android build files
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/
+android/.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

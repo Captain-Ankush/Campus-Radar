@@ -1,0 +1,8 @@
+{
+  "appId": "com.campusradar.app",
+  "appName": " CampusRadar",
+  "webDir": "www",
+  "android": {
+    "useLegacyBridge": true
+  }
+}
